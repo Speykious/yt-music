@@ -1,0 +1,122 @@
+#!/usr/bin/python
+import youtube_dl
+import sys
+
+b = "\x1b[1m"
+c = "\x1b[0m"
+red = "\x1b[31m"
+yel = "\x1b[32m"
+grn = "\x1b[33m"
+blu = "\x1b[34m"
+
+try:
+    download_link = sys.argv[1]
+except IndexError:
+    raise SystemExit(f"\n  Usage: {b}yt-music{c} <download link>\n")
+
+def trunc_str(s: str, m: int = 50):
+    if len(s) >= m:
+        s = s[:max(1, m-3)]+"..."
+    return s
+
+class RGB:
+    def __init__(self, value=0x0):
+        self.value = value
+
+blocks = [" ", "▏","▎","▍","▌","▋","▊","▉","█"]
+class LoadingBar:
+    def __init__(self, brackets, cwidth, color=0, msg="loading..."):
+        self.i = 0
+        self.max = 0
+        
+        self.bo = brackets[0]
+        self.bc = brackets[1]
+
+        self.cwidth = cwidth
+        self.color = color
+        self.msg = msg
+
+        self.eta = ""
+        self.totl = ""
+        self.sped = ""
+
+        if isinstance(color, RGB):
+            c = color.value
+            r = c >> 16
+            g = (c >> 8) & 0xff
+            b = c & 0xff
+            self.ano = f"\x1b[38;2;{r};{g};{b}m"
+        elif isinstance(color, int):
+            self.ano = f"\x1b[{color}m"
+        else:
+            raise Exception("Invalid color argument")
+
+        self.anc = "\x1b[39m"
+        self.displaying = True
+  
+    def progress(self):
+        p = min(1, self.i / self.max)
+        full = int(self.cwidth * p)
+        tiny = int((self.cwidth * p - full) * 8)
+        perc = p * 100
+        bar = b + grn if p >= 1 else b
+
+        tr = " " + self.bo + self.ano + blocks[8] * full
+        tr += "" if tiny == 0 else blocks[tiny]
+        tr += "" if p >= 1 else blocks[0] * (self.cwidth - full - (1 if tiny else 0))
+        tr += f"{self.anc}{self.bc}{bar} {perc:7.2f}"
+        tr += f"%{c} of {self.totl} [ETA {self.eta} | {self.sped}] - {self.msg}"
+
+        return tr
+
+    def print(self):
+        if self.displaying:
+            print("\x1b[1A\r\x1b[2K" + self.progress())
+
+
+
+loading = LoadingBar("║║", 25, color=34, msg="Downloading...")
+
+class YDLLogger(object):
+    def debug(self, msg):
+        print(blu+"[DBG]"+c+msg)
+
+    def warning(self, msg):
+        print(yel+"[WRN]"+c+msg)
+
+    def error(self, msg):
+        print(red+"[ERR]"+c+msg)
+
+def ydl_hook(d):
+    trunced = yel+trunc_str(d["filename"])+c
+    if d["status"] == "downloading":
+        loading.i = d["downloaded_bytes"]
+        loading.max = d["total_bytes"]
+        loading.eta = d["_eta_str"]
+        loading.sped = d["_speed_str"]
+        loading.totl = d["_total_bytes_str"]
+        loading.msg = "Downloading "+trunced
+        loading.print()
+        return
+
+    if d["status"] == "finished":
+        loading.msg = b+grn+"OK "+trunced
+        loading.print()
+        print()
+        return
+
+ydl_opts = {
+    "format": "bestaudio/best",
+    "postprocessors": [{
+        "key": "FFmpegExtractAudio",
+        "preferredcodec": "mp3",
+        "preferredquality": "192",
+    }],
+    "logger": YDLLogger(),
+    "progress_hooks": [ydl_hook],
+}
+
+with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+    print(f"{b}=== Downloading from '{download_link}' ==={c}\n\n")
+    ydl.download([download_link])
+    print(f"{b}=== SUCCESS ==={c}")
