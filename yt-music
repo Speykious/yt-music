@@ -79,7 +79,8 @@ loading = LoadingBar("║║", 25, color=34, msg="Downloading...")
 
 class YDLLogger(object):
     def debug(self, msg):
-        print(blu+"[DBG]"+c+msg)
+        # print(blu+"[DBG]"+c+msg)
+        pass
 
     def warning(self, msg):
         print(yel+"[WRN]"+c+msg)
@@ -106,14 +107,21 @@ def ydl_hook(d):
         return
 
 ydl_opts = {
+    "writethumbnail": True,
     "format": "bestaudio/best",
-    "postprocessors": [{
-        "key": "FFmpegExtractAudio",
-        "preferredcodec": "mp3",
-        "preferredquality": "192",
-    }],
-    "logger": YDLLogger(),
+    "outtmpl": "%(title)s.%(ext)s",
     "progress_hooks": [ydl_hook],
+    "logger": YDLLogger(),
+    "postprocessors": [
+        {
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        },
+        {
+            "key": "EmbedThumbnail"
+        }
+    ]
 }
 
 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
